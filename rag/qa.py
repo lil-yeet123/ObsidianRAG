@@ -1,11 +1,18 @@
 from langchain_community.chat_models import ChatOllama
 from langchain.chains import RetrievalQA
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import SystemMessage
 from langchain_core.prompts import PromptTemplate
 
 
+class StreamingHandler(BaseCallbackHandler):
+    def on_llm_new_token(self, token: str, **kwargs) -> None:
+        print(token, end="", flush=True)
+
+
 def build_qa_chain(db, model_name="mistral"):
-    llm = ChatOllama(model=model_name)
+    llm = ChatOllama(model=model_name,
+                     callbacks=[StreamingHandler()],)
 
     template = """
     Antworte immer auf Deutsch.
