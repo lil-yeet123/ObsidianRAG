@@ -4,6 +4,7 @@ import threading
 import time
 
 from langchain_community.document_loaders import DirectoryLoader
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
@@ -18,11 +19,14 @@ DB_PATH = "chroma_db"
 
 VAULT_PATH = "/home/matti/Obsidian"
 
+
+
+
 def spinner_task(stop_event):
-    spinner = ["|", "/", "-", "\\"]
+    spinner = ['⣾', '⣷', '⣯', '⣟', '⡿', '⢿', '⣻', '⣽']
     idx = 0
     while not stop_event.is_set():
-        sys.stdout.write(f"\r💭 Denken... {spinner[idx % len(spinner)]}")
+        sys.stdout.write(f"\r{spinner[idx % len(spinner)]}")
         sys.stdout.flush()
         idx += 1
         time.sleep(0.1)
@@ -31,10 +35,10 @@ def spinner_task(stop_event):
 
 def init_db():
     loader = DirectoryLoader(VAULT_PATH, glob="**/*.md")
-    documents = loader.load()
+    documents = [doc for doc in loader.load() if "Templates/" not in doc.metadata["source"]]
     print(f"[+] Geladene Dokumente: {len(documents)}")
 
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     texts = splitter.split_documents(documents)
     print(f"[+] Nach Split: {len(texts)} Chunks")
 
@@ -63,16 +67,10 @@ def chat():
         if query.lower() in ["exit", "quit"]:
             break
 
-        stop_event = threading.Event()
-        t = threading.Thread(target=spinner_task, args=(stop_event,))
-        t.start()
+        print("\n", end=" ", flush=True)
+        result = qa.invoke({"query": query})  # Tokens kommen live über StreamingHandler
+        print("\n")  # sauberer Zeilenumbruch nach kompletter Antwort
 
-        result = qa.invoke({"query": query})
-
-        stop_event.set()
-        t.join()
-
-        print("\n💡 Antwort:", result["result"])
         if "source_documents" in result:
             print("\n📂 Quellen:")
             for doc in result["source_documents"]:
