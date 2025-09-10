@@ -7,17 +7,18 @@ from langchain_community.document_loaders import DirectoryLoader
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 
 from rag.loader import load_documents
 from rag.qa import build_qa_chain
-from rag.vectorstore import load_vectorstore
+from rag.vectorstore import load_vectorstore, build_vectorstore
 
-DB_PATH = "chroma_db"
+DB_PATH = "db/faiss_index"
 
-VAULT_PATH = "/home/matti/Obsidian"
+
+VAULT_PATH = "G:/notes/Obsidian"
 
 
 
@@ -33,34 +34,22 @@ def spinner_task(stop_event):
     sys.stdout.write("\r" + " " * 20 + "\r")
 
 
+
 def init_db():
-    loader = DirectoryLoader(VAULT_PATH, glob="**/*.md")
-    documents = [doc for doc in loader.load() if "Templates/" not in doc.metadata["source"]]
+    documents = load_documents(VAULT_PATH)
+    documents = [doc for doc in documents if "Templates/" not in doc.metadata["source"]]
     print(f"[+] Geladene Dokumente: {len(documents)}")
 
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    texts = splitter.split_documents(documents)
-    print(f"[+] Nach Split: {len(texts)} Chunks")
-
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
-    db = Chroma.from_documents(
-        documents=texts,
-        embedding=embeddings,
-        persist_directory="./chroma_db"
-    )
-    db.persist()
+    db = build_vectorstore(documents, persist_directory=DB_PATH)
     return db
 
-
 def chat():
-    if not os.path.exists(DB_PATH):
+    if not os.path.exists(DB_PATH) or not os.path.exists(os.path.join(DB_PATH, "faiss_index.pkl")):
         db = init_db()
     else:
-        db = load_vectorstore(DB_PATH)
+        db = load_vectorstore(persist_directory=DB_PATH)
 
-    qa = build_qa_chain(db, model_name="mistral")
-
+    qa = build_qa_chain(db, model_name="gemma2:9b")
     print("Obsidian-RAG-Bot (quit mit 'exit')")
     while True:
         query = input("Frage: ")
